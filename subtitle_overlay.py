@@ -465,11 +465,7 @@ class DragHandle(QWidget):
             self._model_combo.setCurrentIndex(active_index)
         self._model_combo.blockSignals(False)
 
-    def set_active_model(self, index: int):
-        self._model_combo.blockSignals(True)
-        if 0 <= index < self._model_combo.count():
-            self._model_combo.setCurrentIndex(index)
-        self._model_combo.blockSignals(False)
+
 
     @property
     def auto_scroll(self) -> bool:
@@ -732,9 +728,6 @@ class SubtitleOverlay(QWidget):
 
     def set_models(self, models: list, active_index: int = 0):
         self._handle.set_models(models, active_index)
-
-    def set_active_model(self, index: int):
-        self._handle.set_active_model(index)
 
     def clear(self):
         self.clear_signal.emit()

@@ -338,6 +338,10 @@ class LiveTransApp:
 
     def stop(self):
         self._running = False
+        # Flush remaining VAD buffer before stopping
+        remaining = self._vad.flush()
+        if remaining is not None and self._asr_ready:
+            self._process_segment(remaining)
         self._audio.stop()
         if self._pipeline_thread:
             self._pipeline_thread.join(timeout=3)
@@ -351,6 +355,51 @@ class LiveTransApp:
     def resume(self):
         self._paused = False
         log.info("Pipeline resumed")
+
+    def _process_segment(self, speech_segment):
+        """Run ASR + translation on a speech segment. Called from pipeline thread and stop()."""
+        seg_len = len(speech_segment) / 16000
+        log.info(f"Speech segment: {seg_len:.1f}s")
+
+        asr_start = time.perf_counter()
+        try:
+            result = self._asr.transcribe(speech_segment)
+        except Exception as e:
+            log.error(f"ASR error: {e}", exc_info=True)
+            return
+        asr_ms = (time.perf_counter() - asr_start) * 1000
+        if asr_ms > 10000:
+            log.warning(f"ASR took {asr_ms:.0f}ms, possible hang")
+        if result is None:
+            return
+
+        original_text = result["text"].strip()
+        # Skip empty or punctuation-only ASR results
+        if not original_text or not any(c.isalnum() for c in original_text):
+            log.debug(f"ASR returned empty/punctuation-only, skipping: '{result['text']}'")
+            return
+
+        self._asr_count += 1
+        self._msg_id += 1
+        msg_id = self._msg_id
+        source_lang = result["language"]
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        log.info(f"ASR [{source_lang}] ({asr_ms:.0f}ms): {original_text}")
+
+        if self._overlay:
+            self._overlay.add_message(
+                msg_id, timestamp, original_text, source_lang, asr_ms
+            )
+
+        target_lang = self._target_language
+        if source_lang == target_lang:
+            log.info(f"Same language ({source_lang}), no translation")
+            if self._overlay:
+                self._overlay.update_translation(msg_id, "", 0)
+        else:
+            self._tl_executor.submit(
+                self._translate_async, msg_id, original_text, source_lang
+            )
 
     def _pipeline_loop(self):
         while self._running:
@@ -374,48 +423,7 @@ class LiveTransApp:
                 log.debug("ASR not ready, dropping segment")
                 continue
 
-            seg_len = len(speech_segment) / 16000
-            log.info(f"Speech segment: {seg_len:.1f}s")
-
-            asr_start = time.perf_counter()
-            try:
-                result = self._asr.transcribe(speech_segment)
-            except Exception as e:
-                log.error(f"ASR error: {e}", exc_info=True)
-                continue
-            asr_ms = (time.perf_counter() - asr_start) * 1000
-            if asr_ms > 10000:
-                log.warning(f"ASR took {asr_ms:.0f}ms, possible hang")
-            if result is None:
-                continue
-
-            original_text = result["text"].strip()
-            # Skip empty or punctuation-only ASR results
-            if not original_text or not any(c.isalnum() for c in original_text):
-                log.debug(f"ASR returned empty/punctuation-only, skipping: '{result['text']}'")
-                continue
-
-            self._asr_count += 1
-            self._msg_id += 1
-            msg_id = self._msg_id
-            source_lang = result["language"]
-            timestamp = datetime.now().strftime("%H:%M:%S")
-            log.info(f"ASR [{source_lang}] ({asr_ms:.0f}ms): {original_text}")
-
-            if self._overlay:
-                self._overlay.add_message(
-                    msg_id, timestamp, original_text, source_lang, asr_ms
-                )
-
-            target_lang = self._target_language
-            if source_lang == target_lang:
-                log.info(f"Same language ({source_lang}), no translation")
-                if self._overlay:
-                    self._overlay.update_translation(msg_id, "", 0)
-            else:
-                self._tl_executor.submit(
-                    self._translate_async, msg_id, original_text, source_lang
-                )
+            self._process_segment(speech_segment)
 
 
 def main():
