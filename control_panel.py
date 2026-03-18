@@ -251,7 +251,7 @@ class ControlPanel(QWidget):
             pass
         saved_mic = s.get("mic_device")
         if saved_mic:
-            if saved_mic == "__default__":
+            if saved_mic in ("__default__", "default"):
                 self._mic_device.setCurrentIndex(1)
             else:
                 idx = self._mic_device.findText(saved_mic)

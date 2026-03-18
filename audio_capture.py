@@ -168,7 +168,7 @@ class AudioCapture:
         wasapi_info = self._get_wasapi_info()
         if wasapi_info is None:
             raise RuntimeError("WASAPI host API not found")
-        if self._mic_device_name == "__default__":
+        if self._mic_device_name in ("__default__", "default"):
             default_idx = wasapi_info["defaultInputDevice"]
             dev = self._pa.get_device_info_by_index(default_idx)
             if dev["maxInputChannels"] > 0:
