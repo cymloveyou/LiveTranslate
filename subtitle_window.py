@@ -378,11 +378,8 @@ class _SubtitleTextWidget(QWidget):
         return segments or [text]
 
     def desired_height(self) -> int:
-        if not self._text:
-            return 0
         fm = QFontMetrics(self._font)
         ow = self._outline_width if self._outline_enabled else 0
-        # Single line only (no wrapping)
         return fm.lineSpacing() + ow * 2 + 4
 
     def _update_height(self):
@@ -546,16 +543,11 @@ class SubtitleWindow(QWidget):
         margins = self._content_layout.contentsMargins()
         spacing = self._content_layout.spacing()
         total = margins.top() + margins.bottom()
-        visible_count = 0
-        for tw in self._text_widgets:
-            h = tw.desired_height()
-            if h > 0:
-                total += h
-                visible_count += 1
-        if visible_count > 1:
-            total += spacing * (visible_count - 1)
-        total = max(total, 20)
-        self.setFixedHeight(total)
+        for i, tw in enumerate(self._text_widgets):
+            total += tw.desired_height()
+            if i > 0:
+                total += spacing
+        self.setFixedHeight(max(total, 20))
 
     def apply_settings(self, settings: dict):
         self._settings = _merge_settings(DEFAULT_SUBTITLE_WIN_SETTINGS, settings)
