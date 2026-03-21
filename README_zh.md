@@ -45,12 +45,14 @@ cd LiveTranslate
 ```
 
 双击 **`install.bat`** 一键安装——脚本会自动：
-1. 检测 Python（未安装则通过 winget 自动安装）
+1. 检测 Python 3.10+（未安装则通过 winget 自动安装）
 2. 创建虚拟环境
 3. 检测 NVIDIA 显卡，选择 CUDA / CPU 版 PyTorch
 4. 安装全部依赖
 
 安装完成后双击 **`start.bat`** 启动。
+
+更新时双击 **`update.bat`**——自动拉取最新代码并更新依赖（未安装 Git 会通过 winget 自动安装）。
 
 <details>
 <summary>手动安装</summary>

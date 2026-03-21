@@ -45,12 +45,14 @@ cd LiveTranslate
 ```
 
 Double-click **`install.bat`** — the installer will:
-1. Detect Python (or install it via winget if missing)
+1. Detect Python 3.10+ (auto-install via winget if missing)
 2. Create a virtual environment
 3. Auto-detect NVIDIA GPU and let you choose CUDA / CPU PyTorch
 4. Install all dependencies
 
 Then double-click **`start.bat`** to launch.
+
+To update, double-click **`update.bat`** — it will pull the latest code and update dependencies (auto-installs Git via winget if missing).
 
 <details>
 <summary>Manual install</summary>
