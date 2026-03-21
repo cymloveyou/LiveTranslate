@@ -42,6 +42,20 @@ Works with any system audio — videos, livestreams, voice chat. No player modif
 ```bash
 git clone https://github.com/TheDeathDragon/LiveTranslate.git
 cd LiveTranslate
+```
+
+Double-click **`install.bat`** — the installer will:
+1. Detect Python (or install it via winget if missing)
+2. Create a virtual environment
+3. Auto-detect NVIDIA GPU and let you choose CUDA / CPU PyTorch
+4. Install all dependencies
+
+Then double-click **`start.bat`** to launch.
+
+<details>
+<summary>Manual install</summary>
+
+```bash
 python -m venv .venv
 .venv\Scripts\activate
 
@@ -59,7 +73,7 @@ pip install funasr --no-deps
 
 > FunASR uses `--no-deps` because `editdistance` requires a C++ compiler. `editdistance-s` in `requirements.txt` is a pure-Python drop-in replacement.
 
-Or double-click `start.bat` after setup.
+</details>
 
 ## First Launch
 

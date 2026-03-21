@@ -42,6 +42,20 @@ Windows 实时音频翻译工具。捕获系统音频（WASAPI loopback）和可
 ```bash
 git clone https://github.com/TheDeathDragon/LiveTranslate.git
 cd LiveTranslate
+```
+
+双击 **`install.bat`** 一键安装——脚本会自动：
+1. 检测 Python（未安装则通过 winget 自动安装）
+2. 创建虚拟环境
+3. 检测 NVIDIA 显卡，选择 CUDA / CPU 版 PyTorch
+4. 安装全部依赖
+
+安装完成后双击 **`start.bat`** 启动。
+
+<details>
+<summary>手动安装</summary>
+
+```bash
 python -m venv .venv
 .venv\Scripts\activate
 
@@ -59,7 +73,7 @@ pip install funasr --no-deps
 
 > FunASR 使用 `--no-deps` 安装，因为 `editdistance` 需要 C++ 编译器。`requirements.txt` 中已包含纯 Python 替代品 `editdistance-s`。
 
-设置完成后也可双击 `start.bat` 启动。
+</details>
 
 ## 首次使用
 

@@ -16,6 +16,7 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QSizeGrip,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
@@ -558,6 +559,7 @@ class DragHandle(QWidget):
     auto_scroll_toggled = pyqtSignal(bool)
     taskbar_toggled = pyqtSignal(bool)
     target_language_changed = pyqtSignal(str)
+    source_language_changed = pyqtSignal(str)
     model_changed = pyqtSignal(int)
     start_clicked = pyqtSignal()
     stop_clicked = pyqtSignal()
@@ -687,36 +689,64 @@ class DragHandle(QWidget):
         row2a.addStretch()
         row2_outer.addLayout(row2a)
 
-        # Row 2b: model + target language combos
+        # Row 2b: model + source language + target language combos (stretch to fill)
         row2b = QHBoxLayout()
         row2b.setContentsMargins(0, 0, 0, 0)
-        row2b.setSpacing(6)
+        row2b.setSpacing(4)
+
+        _lbl_css = "color: #888; background: transparent;"
+        _lbl_font = QFont("Consolas", 8)
+        _combo_font = QFont("Consolas", 8)
 
         model_lbl = QLabel(t("model_label"))
-        model_lbl.setFont(QFont("Consolas", 8))
-        model_lbl.setStyleSheet("color: #888; background: transparent;")
+        model_lbl.setFont(_lbl_font)
+        model_lbl.setStyleSheet(_lbl_css)
         row2b.addWidget(model_lbl)
 
         self._model_combo = QComboBox()
         self._model_combo.setFixedHeight(18)
-        self._model_combo.setMinimumWidth(140)
-        self._model_combo.setFont(QFont("Consolas", 8))
+        self._model_combo.setFont(_combo_font)
         self._model_combo.setStyleSheet(_COMBO_CSS)
+        self._model_combo.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
         self._model_combo.currentIndexChanged.connect(self.model_changed.emit)
-        row2b.addWidget(self._model_combo)
+        row2b.addWidget(self._model_combo, 3)
 
-        row2b.addStretch()
+        src_lbl = QLabel(t("source_label"))
+        src_lbl.setFont(_lbl_font)
+        src_lbl.setStyleSheet(_lbl_css)
+        row2b.addWidget(src_lbl)
+
+        self._source_lang = QComboBox()
+        self._source_lang.setFixedHeight(18)
+        self._source_lang.setFont(_combo_font)
+        self._source_lang.setStyleSheet(_COMBO_CSS)
+        self._source_lang.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
+        for code, native in LANGUAGES:
+            label = t("asr_lang_auto") if code == "auto" else native
+            self._source_lang.addItem(f"{code} - {label}", code)
+        self._source_lang.currentIndexChanged.connect(
+            lambda idx: self.source_language_changed.emit(
+                self._source_lang.currentData() or "auto"
+            )
+        )
+        row2b.addWidget(self._source_lang, 2)
 
         tgt_lbl = QLabel(t("target_label"))
-        tgt_lbl.setFont(QFont("Consolas", 8))
-        tgt_lbl.setStyleSheet("color: #888; background: transparent;")
+        tgt_lbl.setFont(_lbl_font)
+        tgt_lbl.setStyleSheet(_lbl_css)
         row2b.addWidget(tgt_lbl)
 
         self._target_lang = QComboBox()
         self._target_lang.setFixedHeight(18)
-        self._target_lang.setMinimumWidth(60)
-        self._target_lang.setFont(QFont("Consolas", 8))
+        self._target_lang.setFont(_combo_font)
         self._target_lang.setStyleSheet(_COMBO_CSS)
+        self._target_lang.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
         for code, native in LANGUAGES:
             if code == "auto":
                 continue
@@ -726,7 +756,7 @@ class DragHandle(QWidget):
                 self._target_lang.currentData() or "zh"
             )
         )
-        row2b.addWidget(self._target_lang)
+        row2b.addWidget(self._target_lang, 2)
 
         row2_outer.addLayout(row2b)
 
@@ -748,6 +778,13 @@ class DragHandle(QWidget):
             self._target_lang.blockSignals(True)
             self._target_lang.setCurrentIndex(idx)
             self._target_lang.blockSignals(False)
+
+    def set_source_language(self, lang: str):
+        idx = self._source_lang.findData(lang)
+        if idx >= 0:
+            self._source_lang.blockSignals(True)
+            self._source_lang.setCurrentIndex(idx)
+            self._source_lang.blockSignals(False)
 
     def set_models(self, models: list, active_index: int = 0):
         self._model_combo.blockSignals(True)
@@ -810,6 +847,7 @@ class SubtitleOverlay(QWidget):
 
     settings_requested = pyqtSignal()
     target_language_changed = pyqtSignal(str)
+    source_language_changed = pyqtSignal(str)
     model_switch_requested = pyqtSignal(int)
     start_requested = pyqtSignal()
     stop_requested = pyqtSignal()
@@ -873,6 +911,7 @@ class SubtitleOverlay(QWidget):
         self._handle.topmost_toggled.connect(self._set_topmost)
         self._handle.taskbar_toggled.connect(self._set_taskbar)
         self._handle.target_language_changed.connect(self.target_language_changed.emit)
+        self._handle.source_language_changed.connect(self.source_language_changed.emit)
         self._handle.model_changed.connect(self.model_switch_requested.emit)
         self._handle.start_clicked.connect(self.start_requested.emit)
         self._handle.stop_clicked.connect(self.stop_requested.emit)
@@ -1086,6 +1125,9 @@ class SubtitleOverlay(QWidget):
 
     def set_target_language(self, lang: str):
         self._handle.set_target_language(lang)
+
+    def set_source_language(self, lang: str):
+        self._handle.set_source_language(lang)
 
     def set_models(self, models: list, active_index: int = 0):
         self._handle.set_models(models, active_index)

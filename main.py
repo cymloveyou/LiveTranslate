@@ -272,6 +272,8 @@ class LiveTransApp:
             self._target_language = settings["target_language"]
             if self._overlay:
                 self._overlay.set_target_language(self._target_language)
+        if "timeout" in settings and self._translator:
+            self._translator.set_timeout(settings["timeout"])
 
     def _on_target_language_changed(self, lang: str):
         self._target_language = lang
@@ -1035,13 +1037,39 @@ def main():
     _app_icon = create_app_icon()
     app.setWindowIcon(_app_icon)
 
-    # First launch → setup wizard (hub + download)
+    # First launch → setup wizard (hub + download) → configure translation API
     if not SETTINGS_FILE.exists():
         wizard = SetupWizardDialog()
         if wizard.exec() != QDialog.DialogCode.Accepted:
             sys.exit(0)
         saved = _load_saved_settings()
         log.info("Setup wizard completed")
+
+        # Prompt user to configure translation API
+        from dialogs import ModelEditDialog
+
+        info = QMessageBox(
+            QMessageBox.Icon.Information,
+            t("window_setup"),
+            t("setup_api_hint"),
+        )
+        info.exec()
+
+        dlg = ModelEditDialog(None, {
+            "name": "lm-studio",
+            "api_base": "http://127.0.0.1:1234/v1",
+            "api_key": "lm-studio",
+            "model": "lm-studio",
+        })
+        dlg.setWindowTitle(t("setup_api_title"))
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            data = dlg.get_data()
+            if data.get("api_key"):
+                saved["models"] = [data]
+                saved["active_model"] = 0
+                _save_settings(saved)
+                log.info(f"Translation API configured: {data['name']}")
+        # If user skips, ControlPanel will create default placeholder from config.yaml
 
     # Non-first launch but models missing → download dialog
     else:
@@ -1080,6 +1108,10 @@ def main():
         models = panel.get_settings().get("models", [])
         active_idx = panel.get_settings().get("active_model", 0)
         overlay.set_models(models, active_idx)
+        target = panel.get_settings().get("target_language", "zh")
+        overlay.set_target_language(target)
+        asr_lang = panel.get_settings().get("asr_language", "auto")
+        overlay.set_source_language(asr_lang)
         style = panel.get_settings().get("style")
         if style:
             overlay.apply_style(style)
@@ -1431,6 +1463,19 @@ def main():
     # --- Connect overlay signals ---
     overlay.settings_requested.connect(on_toggle_panel)
     overlay.target_language_changed.connect(live_trans._on_target_language_changed)
+
+    def _on_overlay_source_lang(code):
+        """Overlay source language combo → sync to panel + ASR engine + tray."""
+        _on_tray_asr_lang(code)
+        overlay.set_source_language(code)
+
+    def _on_panel_asr_lang_changed(_index):
+        """Panel ASR language combo → sync to overlay."""
+        code = panel._asr_lang.currentData() or "auto"
+        overlay.set_source_language(code)
+
+    overlay.source_language_changed.connect(_on_overlay_source_lang)
+    panel._asr_lang.currentIndexChanged.connect(_on_panel_asr_lang_changed)
     overlay.model_switch_requested.connect(on_overlay_model_switch)
     overlay.start_requested.connect(on_resume)
     overlay.stop_requested.connect(on_pause)

@@ -234,6 +234,7 @@ class SetupWizardDialog(QDialog):
             "silence_mode": "auto",
             "silence_duration": 0.8,
             "asr_language": "auto",
+            "target_language": "zh",
         }
         _save_settings(settings)
         QTimer.singleShot(500, self.accept)
