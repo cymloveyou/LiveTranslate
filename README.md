@@ -14,6 +14,10 @@ Works with any system audio — videos, livestreams, voice chat. No player modif
 
 ![LiveTrans](screenshot/en.png)
 
+## Video
+
+[![Install & Demo](https://img.shields.io/badge/Bilibili-Install%20%26%20Demo-00A1D6?logo=bilibili)](https://www.bilibili.com/video/BV1K2Awz6Euw)
+
 ## Features
 
 - **Real-time pipeline**: System audio → VAD → ASR → LLM translation → overlay

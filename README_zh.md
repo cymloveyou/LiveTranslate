@@ -14,6 +14,10 @@ Windows 实时音频翻译工具。捕获系统音频（WASAPI loopback）和可
 
 ![LiveTrans](screenshot/zh.png)
 
+## 安装视频
+
+[![安装演示](https://img.shields.io/badge/Bilibili-安装演示-00A1D6?logo=bilibili)](https://www.bilibili.com/video/BV1K2Awz6Euw) 适用于看外语视频、直播、ASMR等场景，也可以语音输入实时并行翻译多种语音
+
 ## 功能特性
 
 - **实时翻译管线**：系统音频 → VAD → ASR → LLM 翻译 → 字幕显示
