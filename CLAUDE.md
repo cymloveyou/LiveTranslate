@@ -70,7 +70,7 @@ Each model in `user_settings.json` has: `name`, `api_base`, `api_key`, `model`, 
 ### Subtitle Window (subtitle_window.py)
 
 Standalone transparent window for OBS capture, separate from the main overlay:
-- `SubtitleWindow`: Frameless, transparent, middle-click draggable, auto-hides after timeout
+- `SubtitleWindow`: Frameless, transparent, middle-click draggable, auto-hides after timeout, default position (100, 100)
 - `_SubtitleTextWidget`: QPainterPath-based outlined text rendering per line, with automatic word-wrap and entry/exit animations
 - Text rendered to cached QPixmap; animations only blit the cached image (no per-frame path rendering)
 - Each line has independent font, color, outline, alignment, animation settings
@@ -102,8 +102,9 @@ Key overlay features:
 - **Auto-scroll**: Controls whether new messages/translations auto-scroll to bottom
 - **Model combo**: Populated from `user_settings.json` models list; switching emits `model_switch_requested` signal
 - **Target Language combo**: Emits `target_language_changed`; synced from settings on startup
-- **Compact mode animation**: Toggles between full and minimumHeight with 200ms size animation
+- **Compact mode animation**: Toggles between full and minimumHeight with 200ms size animation; uses `frameGeometry()` for actual window size to avoid Windows MINMAXINFO mismatch; skips animation when height difference < 10px
 - **Position persistence**: `moveEvent`/`resizeEvent` with 500ms debounce save `overlay_x/y/w/h` to `user_settings.json`; restored on startup
+- **Reset positions**: `reset_positions` signal from ControlPanel; subtitle window → (100, 100), overlay → bottom-right of screen
 
 ### Settings UX
 

@@ -14,7 +14,7 @@ from pathlib import Path
 import json
 
 from PyQt6.QtCore import (
-    Qt, QRect, pyqtSignal, pyqtSlot, pyqtProperty,
+    Qt, QPoint, QRect, pyqtSignal, pyqtSlot, pyqtProperty,
     QPropertyAnimation, QParallelAnimationGroup, QEasingCurve, QTimer,
 )
 from PyQt6.QtGui import (
@@ -513,6 +513,26 @@ class SubtitleWindow(QWidget):
         self._setup_ui()
         self.update_text_signal.connect(self._on_update_text)
 
+    @staticmethod
+    def _is_pos_visible(x, y, margin=50):
+        for screen in QApplication.screens():
+            geo = screen.availableGeometry()
+            if geo.left() <= x + margin and x < geo.right() and geo.top() <= y + margin and y < geo.bottom():
+                return True
+        return False
+
+    def _clamp_to_screen(self):
+        x, y = self.x(), self.y()
+        if self._is_pos_visible(x, y):
+            return
+        screen = QApplication.screenAt(QPoint(x, y))
+        if screen is None:
+            screen = QApplication.primaryScreen()
+        geo = screen.availableGeometry()
+        nx = max(geo.left(), min(x, geo.right() - self.width()))
+        ny = max(geo.top(), min(y, geo.bottom() - self.height()))
+        self.move(nx, ny)
+
     def _setup_ui(self):
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint
@@ -527,11 +547,12 @@ class SubtitleWindow(QWidget):
         saved_x = s.get("window_x")
         saved_y = s.get("window_y")
         if saved_x is not None and saved_y is not None:
-            self.move(saved_x, saved_y)
+            if self._is_pos_visible(saved_x, saved_y):
+                self.move(saved_x, saved_y)
+            else:
+                self.move(100, 100)
         else:
-            screen = QApplication.primaryScreen()
-            geo = screen.geometry()
-            self.move((geo.width() - w) // 2, geo.height() - 200)
+            self.move(100, 100)
         self.setFixedWidth(w)
 
         self._main_layout = QVBoxLayout(self)
@@ -604,6 +625,7 @@ class SubtitleWindow(QWidget):
             self._height_anim.stop()
         self.move(self.x(), self.y() - (new_h - old_h) // 2)
         self.setFixedHeight(new_h)
+        self._clamp_to_screen()
         self.position_changed.emit()
 
     def _fit_height_animated(self):
@@ -626,6 +648,7 @@ class SubtitleWindow(QWidget):
 
         def on_finished():
             self.setFixedHeight(new_h)
+            self._clamp_to_screen()
             self.position_changed.emit()
         anim.finished.connect(on_finished)
 

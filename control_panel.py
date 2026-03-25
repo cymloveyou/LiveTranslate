@@ -78,6 +78,7 @@ class ControlPanel(QWidget):
     subtitle_settings_changed = pyqtSignal(dict)
     _bench_result = pyqtSignal(str)
     _cache_result = pyqtSignal(list)
+    reset_positions = pyqtSignal()
 
     def __init__(self, config, saved_settings=None):
         super().__init__()
@@ -561,6 +562,9 @@ class ControlPanel(QWidget):
         reset_btn = QPushButton(t("btn_reset_style"))
         reset_btn.clicked.connect(self._reset_style)
         preset_layout.addWidget(reset_btn)
+        reset_pos_btn = QPushButton(t("btn_reset_positions"))
+        reset_pos_btn.clicked.connect(self.reset_positions.emit)
+        preset_layout.addWidget(reset_pos_btn)
         layout.addWidget(preset_group)
 
         # Background group

@@ -1121,7 +1121,12 @@ def main():
         ow = saved.get("overlay_w")
         oh = saved.get("overlay_h")
         if ox is not None and oy is not None:
-            overlay.move(ox, oy)
+            if SubtitleWindow._is_pos_visible(ox, oy):
+                overlay.move(ox, oy)
+            else:
+                screen = QApplication.primaryScreen()
+                geo = screen.availableGeometry()
+                overlay.move(geo.right() - overlay.width() - 20, geo.bottom() - overlay.height() - 60)
         if ow and oh:
             overlay.resize(ow, oh)
     overlay.show()
@@ -1299,6 +1304,17 @@ def main():
         subwin.apply_settings(s)
 
     panel.subtitle_settings_changed.connect(_on_panel_subtitle_changed)
+
+    def _on_reset_positions():
+        screen = QApplication.primaryScreen()
+        geo = screen.availableGeometry()
+        subwin.move(100, 100)
+        _save_subwin_state()
+        ow, oh = overlay.width(), overlay.height()
+        overlay.move(geo.right() - ow - 50, geo.bottom() - oh - 100)
+        _save_overlay_pos()
+
+    panel.reset_positions.connect(_on_reset_positions)
 
     menu.addSeparator()
 

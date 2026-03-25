@@ -924,13 +924,13 @@ class SubtitleOverlay(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
 
         screen = QApplication.primaryScreen()
-        geo = screen.geometry()
+        geo = screen.availableGeometry()
         width = 620
         height = 500
-        x = geo.width() - width - 20
-        y = geo.height() - height - 60
+        x = geo.right() - width - 20
+        y = geo.bottom() - height - 60
         self.setGeometry(x, y, width, height)
-        self.setMinimumSize(480, 280)
+        self.setMinimumSize(480, 200)
 
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
@@ -1099,14 +1099,17 @@ class SubtitleOverlay(QWidget):
         else:
             target_h = self._height_before_compact or 500
 
-        anim = QPropertyAnimation(self, b"size")
-        anim.setDuration(200)
-        anim.setStartValue(self.size())
-        anim.setEndValue(QSize(self.width(), target_h))
-        anim.setEasingCurve(QEasingCurve.Type.OutCubic)
-
-        self._mode_anim = anim
-        anim.start()
+        actual_h = self.frameGeometry().height()
+        if abs(actual_h - target_h) < 10:
+            self.resize(self.width(), target_h)
+        else:
+            anim = QPropertyAnimation(self, b"size")
+            anim.setDuration(200)
+            anim.setStartValue(QSize(self.width(), actual_h))
+            anim.setEndValue(QSize(self.width(), target_h))
+            anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+            self._mode_anim = anim
+            anim.start()
 
     def set_mode(self, mode: str):
         self._handle.set_mode(mode)
