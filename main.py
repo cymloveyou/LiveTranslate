@@ -7,6 +7,7 @@ import sys
 import signal
 import logging
 import threading
+import queue
 from concurrent.futures import ThreadPoolExecutor
 import yaml
 import time
@@ -162,6 +163,7 @@ class LiveTranslateApp:
         self._asr_device = config["asr"]["device"]
         self._whisper_model_size = config["asr"]["model_size"]
         self._asr_lock = threading.Lock()
+        self._vad_lock = threading.Lock()
         self._target_language = config["translation"]["target_language"]
         self._translator = Translator(
             api_base=config["translation"]["api_base"],
@@ -176,7 +178,9 @@ class LiveTranslateApp:
         self._overlay = None
         self._subwin = None
         self._panel = None
-        self._pipeline_thread = None
+        self._capture_thread = None
+        self._asr_thread = None
+        self._asr_queue = queue.Queue(maxsize=16)
         self._tl_executor = ThreadPoolExecutor(max_workers=8)
 
         self._asr_count = 0
@@ -553,23 +557,33 @@ class LiveTranslateApp:
             return
         n = len(self._subwin.get_target_languages()) if self._subwin else 1
         self._tl_executor = ThreadPoolExecutor(max_workers=max(8, n + 1))
+        self._asr_queue = queue.Queue(maxsize=16)
         self._running = True
         self._paused = False
         self._audio.start()
-        self._pipeline_thread = threading.Thread(
-            target=self._pipeline_loop, daemon=True
+        self._capture_thread = threading.Thread(
+            target=self._capture_loop, daemon=True
         )
-        self._pipeline_thread.start()
-        log.info("Pipeline started")
+        self._asr_thread = threading.Thread(
+            target=self._asr_loop, daemon=True
+        )
+        self._capture_thread.start()
+        self._asr_thread.start()
+        log.info("Pipeline started (capture + ASR threads)")
 
     def stop(self):
         self._running = False
         self._audio.stop()
-        # Wait for pipeline thread to finish before flushing
-        if self._pipeline_thread:
-            self._pipeline_thread.join(timeout=3)
-            self._pipeline_thread = None
-        # Flush remaining VAD buffer after pipeline thread is done
+        if self._capture_thread:
+            self._capture_thread.join(timeout=3)
+            self._capture_thread = None
+        self._asr_queue.put(None)
+        if self._asr_thread:
+            self._asr_thread.join(timeout=10)
+            if self._asr_thread.is_alive():
+                log.warning("ASR thread still running after timeout, proceeding with cleanup")
+            self._asr_thread = None
+        # Flush remaining VAD buffer after pipeline threads are done
         if self._interim_active:
             remaining = self._vad.force_flush()
             if remaining is not None and self._asr_ready:
@@ -602,7 +616,7 @@ class LiveTranslateApp:
         log.info("Pipeline resumed")
 
     def _process_segment(self, speech_segment):
-        """Run ASR + translation on a speech segment. Called from pipeline thread and stop()."""
+        """Run ASR + translation on a speech segment. Called from ASR thread and stop()."""
         seg_len = len(speech_segment) / 16000
         log.info(f"Speech segment: {seg_len:.1f}s")
 
@@ -761,7 +775,8 @@ class LiveTranslateApp:
     def _do_interim_asr(self) -> bool:
         """Run ASR on current VAD buffer, output complete sentences, trim consumed audio.
         Returns True if any sentences were committed."""
-        peek = self._vad.peek_buffer()
+        with self._vad_lock:
+            peek = self._vad.peek_buffer()
         if peek is None:
             return False
         audio, duration = peek
@@ -862,9 +877,9 @@ class LiveTranslateApp:
         if not actually_committed:
             return False
 
-        # Trim consumed audio from VAD buffer
         if trim_samples > 0:
-            self._vad.trim_front(trim_samples)
+            with self._vad_lock:
+                self._vad.trim_front(trim_samples)
 
         # Track committed text tail for echo dedup
         self._interim_committed_tail = committed_text[-50:] if len(committed_text) > 50 else committed_text
@@ -969,7 +984,7 @@ class LiveTranslateApp:
 
         self._process_segment_text(original_text, result["language"], asr_ms)
 
-    def _pipeline_loop(self):
+    def _capture_loop(self):
         silence_chunk = np.zeros(
             int(
                 self._config["audio"]["sample_rate"]
@@ -983,9 +998,10 @@ class LiveTranslateApp:
                 if self._vad._is_speaking and not self._paused:
                     n = self._vad._get_effective_silence_limit() + 1
                     for _ in range(n):
-                        seg = self._vad.process_chunk(silence_chunk)
+                        with self._vad_lock:
+                            seg = self._vad.process_chunk(silence_chunk)
                         if seg is not None and self._asr_ready:
-                            self._process_segment(seg)
+                            self._enqueue_asr("vad_flush", seg)
                             break
                 continue
 
@@ -999,7 +1015,8 @@ class LiveTranslateApp:
             if self._overlay:
                 self._overlay.update_monitor(rms, self._vad.last_confidence, mic_rms)
 
-            speech_segment = self._vad.process_chunk(chunk)
+            with self._vad_lock:
+                speech_segment = self._vad.process_chunk(chunk)
 
             if speech_segment is None:
                 # Still accumulating — check for interim ASR
@@ -1012,26 +1029,66 @@ class LiveTranslateApp:
                     cooldown = now - self._last_interim_check_time
                     if total_dur >= self._interim_interval and elapsed >= self._interim_interval and cooldown >= 1.0:
                         self._last_interim_check_time = now
-                        committed = self._do_interim_asr()
-                        if committed:
-                            self._last_interim_samples = self._vad._speech_samples
+                        self._enqueue_asr("interim", None)
                 continue
 
             if not self._asr_ready:
                 log.debug("ASR not ready, dropping segment")
                 continue
 
-            # VAD flushed — handle final segment
-            if self._interim_active:
-                self._process_interim_final(speech_segment)
-            else:
-                self._process_segment(speech_segment)
-            # Reset interim state
-            self._interim_active = False
-            self._interim_pending = ""
-            self._last_interim_samples = 0
-            self._last_interim_check_time = 0.0
-            self._interim_committed_tail = ""
+            self._enqueue_asr("vad_flush", speech_segment)
+
+    def _enqueue_asr(self, seg_type: str, segment):
+        try:
+            self._asr_queue.put_nowait((seg_type, segment))
+        except queue.Full:
+            try:
+                dropped = self._asr_queue.get_nowait()
+                log.warning(f"ASR queue full, dropped {dropped[0]} segment")
+            except queue.Empty:
+                pass
+            try:
+                self._asr_queue.put_nowait((seg_type, segment))
+            except queue.Full:
+                log.warning("ASR queue still full after drop, skipping segment")
+
+    def _asr_loop(self):
+        while self._running:
+            try:
+                item = self._asr_queue.get(timeout=1.0)
+            except queue.Empty:
+                continue
+
+            if item is None:
+                break
+
+            seg_type, segment = item
+
+            if seg_type == "vad_flush":
+                if self._interim_active:
+                    self._process_interim_final(segment)
+                else:
+                    self._process_segment(segment)
+                self._interim_active = False
+                self._interim_pending = ""
+                self._last_interim_samples = 0
+                self._last_interim_check_time = 0.0
+                self._interim_committed_tail = ""
+            elif seg_type == "interim":
+                self._drain_interim_duplicates()
+                committed = self._do_interim_asr()
+                if committed:
+                    self._last_interim_samples = self._vad._speech_samples
+
+    def _drain_interim_duplicates(self):
+        while True:
+            try:
+                item = self._asr_queue.get_nowait()
+            except queue.Empty:
+                break
+            if item is None or item[0] != "interim":
+                self._asr_queue.put(item)
+                break
 
 
 def main():
