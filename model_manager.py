@@ -12,6 +12,7 @@ ASR_MODEL_IDS = {
     "funasr-nano": "FunAudioLLM/Fun-ASR-Nano-2512",
     "funasr-mlt-nano": "FunAudioLLM/Fun-ASR-MLT-Nano-2512",
     "qwen3-asr": "Qwen3-ASR-1.7B",
+    "anime-whisper": "litagin/anime-whisper",
 }
 
 ASR_DISPLAY_NAMES = {
@@ -20,6 +21,7 @@ ASR_DISPLAY_NAMES = {
     "funasr-mlt-nano": "Fun-ASR-MLT-Nano",
     "whisper": "Whisper",
     "qwen3-asr": "Qwen3-ASR",
+    "anime-whisper": "Anime-Whisper",
 }
 
 # Expected model files for Qwen3-ASR
@@ -42,6 +44,7 @@ _MODEL_SIZE_BYTES = {
     "whisper-medium": 1_530_000_000,
     "whisper-large-v3": 3_100_000_000,
     "qwen3-asr": 770_000_000,
+    "anime-whisper": 3_100_000_000,
 }
 
 _WHISPER_SIZES = ["tiny", "base", "small", "medium", "large-v3"]
@@ -50,6 +53,7 @@ _CACHE_MODELS = [
     ("SenseVoice Small", "iic/SenseVoiceSmall"),
     ("Fun-ASR-Nano", "FunAudioLLM/Fun-ASR-Nano-2512"),
     ("Fun-ASR-MLT-Nano", "FunAudioLLM/Fun-ASR-MLT-Nano-2512"),
+    ("Anime-Whisper", "litagin/anime-whisper"),
 ]
 
 
@@ -118,6 +122,27 @@ def is_asr_cached(engine_type, model_size="medium", hub="ms") -> bool:
             return True
         if (MODELS_DIR / "huggingface" / "hub" / f"models--{org}--{name}").exists():
             return True
+        return False
+    if engine_type == "anime-whisper":
+        # HF-only (not published to ModelScope). Check that snapshots dir actually
+        # contains weight files; an .incomplete blob means a prior run aborted mid-download.
+        model_id = ASR_MODEL_IDS[engine_type]
+        org, name = model_id.split("/")
+        snap_root = (
+            MODELS_DIR / "huggingface" / "hub" / f"models--{org}--{name}" / "snapshots"
+        )
+        if not snap_root.exists():
+            return False
+        for snap in snap_root.iterdir():
+            if not snap.is_dir():
+                continue
+            has_weights = any(
+                (snap / fn).exists()
+                for fn in ("model.safetensors", "pytorch_model.bin")
+            )
+            has_config = (snap / "config.json").exists()
+            if has_weights and has_config:
+                return True
         return False
     elif engine_type == "whisper":
         return (
@@ -323,6 +348,13 @@ def download_asr(engine, model_size="medium", hub="ms"):
 
             log.info(f"Downloading {model_id} from HuggingFace...")
             snapshot_download(repo_id=model_id, cache_dir=hf_cache)
+    elif engine == "anime-whisper":
+        # HF-only, ignore hub setting
+        from huggingface_hub import snapshot_download
+
+        model_id = ASR_MODEL_IDS[engine]
+        log.info(f"Downloading {model_id} from HuggingFace...")
+        snapshot_download(repo_id=model_id, cache_dir=hf_cache)
     elif engine == "whisper":
         from huggingface_hub import snapshot_download
 

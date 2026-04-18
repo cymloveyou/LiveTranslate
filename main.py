@@ -412,6 +412,11 @@ class LiveTranslateApp:
                     new_asr[0] = FunASRNanoEngine(
                         device=device, hub=hub, engine_type=engine_type
                     )
+                elif engine_type == "anime-whisper":
+                    from asr_anime_whisper import AnimeWhisperEngine
+
+                    dev_str = dev if dev == "cpu" else f"cuda:{dev_index}"
+                    new_asr[0] = AnimeWhisperEngine(device=dev_str, hub=hub)
                 else:
                     download_root = str((MODELS_DIR / "huggingface" / "hub").resolve())
                     compute = self._config["asr"]["compute_type"]

@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-04-18
+- New ASR engine: Anime-Whisper (litagin/anime-whisper), Japanese-only, specialized for anime / galgame speech (breaths, sighs, non-verbal sounds)
+- Fix HF cache detection: aborted downloads leaving empty dirs no longer trigger false "cached" state
+
 ## 2026-03-24
 - Subtitle window: auto word-wrap for long text (no more split segments), smooth height animation, pixmap render cache
 - Overlay & subtitle window: position/size persistence across restarts
