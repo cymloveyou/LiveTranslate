@@ -104,6 +104,16 @@ class RepetitionError(Exception):
     pass
 
 
+_OVERRIDE_KEYS = (
+    "temperature",
+    "top_p",
+    "max_tokens",
+    "frequency_penalty",
+    "presence_penalty",
+    "seed",
+)
+
+
 class Translator:
     """LLM-based translation using OpenAI-compatible API."""
 
@@ -122,6 +132,8 @@ class Translator:
         no_think=False,
         json_response=False,
         timeout=10,
+        overrides=None,
+        extra_body=None,
     ):
         self._client = make_openai_client(api_base, api_key, proxy, timeout=timeout)
         self._no_system_role = no_system_role
@@ -137,6 +149,12 @@ class Translator:
         self._temperature = temperature
         self._streaming = streaming
         self._timeout = timeout
+        self._overrides = {k: v for k, v in (overrides or {}).items() if v is not None}
+        self._extra_body = dict(extra_body) if extra_body else {}
+        if self._overrides:
+            log.info(f"Translator overrides: {self._overrides}")
+        if self._extra_body:
+            log.info(f"Translator extra_body: {self._extra_body}")
         self._system_prompt_template = system_prompt or DEFAULT_PROMPT
         self._context_turns = 0
         self._history = []  # list of (source_text, translated_text)
@@ -176,6 +194,8 @@ class Translator:
         t._temperature = self._temperature
         t._streaming = self._streaming
         t._timeout = self._timeout
+        t._overrides = dict(self._overrides)
+        t._extra_body = dict(self._extra_body)
         t._system_prompt_template = self._system_prompt_template
         t._context_turns = 0
         t._history = []
@@ -218,6 +238,41 @@ class Translator:
             if len(self._history) > max_keep:
                 self._history = self._history[-self._context_turns:]
 
+    def _build_request_kwargs(self, system_prompt, text, stream=False):
+        kwargs = dict(
+            model=self._model,
+            messages=self._build_messages(system_prompt, text),
+            max_tokens=self._max_tokens,
+            temperature=self._temperature,
+        )
+        for k in _OVERRIDE_KEYS:
+            if k in self._overrides:
+                kwargs[k] = self._overrides[k]
+        extra_body = {}
+        if self._no_think:
+            extra_body["enable_thinking"] = False
+        if self._extra_body:
+            extra_body.update(self._extra_body)
+        if extra_body:
+            kwargs["extra_body"] = extra_body
+        if self._json_response:
+            kwargs["response_format"] = {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "translation",
+                    "strict": True,
+                    "schema": {
+                        "type": "object",
+                        "properties": {"t": {"type": "string"}},
+                        "required": ["t"],
+                        "additionalProperties": False,
+                    },
+                },
+            }
+        if stream:
+            kwargs["stream"] = True
+        return kwargs
+
     def translate(self, text: str, source_language: str = "en"):
         system_prompt = self._build_system_prompt(source_language)
         if self._streaming:
@@ -247,29 +302,7 @@ class Translator:
         # Streaming path
         self._last_prompt_tokens = 0
         self._last_completion_tokens = 0
-        base_kwargs = dict(
-            model=self._model,
-            messages=self._build_messages(system_prompt, text),
-            max_tokens=self._max_tokens,
-            temperature=self._temperature,
-            stream=True,
-        )
-        if self._no_think:
-            base_kwargs["extra_body"] = {"enable_thinking": False}
-        if self._json_response:
-            base_kwargs["response_format"] = {
-                "type": "json_schema",
-                "json_schema": {
-                    "name": "translation",
-                    "strict": True,
-                    "schema": {
-                        "type": "object",
-                        "properties": {"t": {"type": "string"}},
-                        "required": ["t"],
-                        "additionalProperties": False,
-                    },
-                },
-            }
+        base_kwargs = self._build_request_kwargs(system_prompt, text, stream=True)
         try:
             stream = self._client.chat.completions.create(
                 **base_kwargs,
@@ -324,28 +357,7 @@ class Translator:
         return False
 
     def _translate_sync(self, system_prompt, text):
-        kwargs = dict(
-            model=self._model,
-            messages=self._build_messages(system_prompt, text),
-            max_tokens=self._max_tokens,
-            temperature=self._temperature,
-        )
-        if self._no_think:
-            kwargs["extra_body"] = {"enable_thinking": False}
-        if self._json_response:
-            kwargs["response_format"] = {
-                "type": "json_schema",
-                "json_schema": {
-                    "name": "translation",
-                    "strict": True,
-                    "schema": {
-                        "type": "object",
-                        "properties": {"t": {"type": "string"}},
-                        "required": ["t"],
-                        "additionalProperties": False,
-                    },
-                },
-            }
+        kwargs = self._build_request_kwargs(system_prompt, text, stream=False)
         resp = self._client.chat.completions.create(**kwargs)
         self._last_prompt_tokens = 0
         self._last_completion_tokens = 0
@@ -360,29 +372,7 @@ class Translator:
     def _translate_streaming(self, system_prompt, text):
         self._last_prompt_tokens = 0
         self._last_completion_tokens = 0
-        base_kwargs = dict(
-            model=self._model,
-            messages=self._build_messages(system_prompt, text),
-            max_tokens=self._max_tokens,
-            temperature=self._temperature,
-            stream=True,
-        )
-        if self._no_think:
-            base_kwargs["extra_body"] = {"enable_thinking": False}
-        if self._json_response:
-            base_kwargs["response_format"] = {
-                "type": "json_schema",
-                "json_schema": {
-                    "name": "translation",
-                    "strict": True,
-                    "schema": {
-                        "type": "object",
-                        "properties": {"t": {"type": "string"}},
-                        "required": ["t"],
-                        "additionalProperties": False,
-                    },
-                },
-            }
+        base_kwargs = self._build_request_kwargs(system_prompt, text, stream=True)
         try:
             stream = self._client.chat.completions.create(
                 **base_kwargs,

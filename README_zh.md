@@ -21,7 +21,7 @@ Windows 实时音频翻译工具。捕获系统音频（WASAPI loopback）和可
 ## 功能特性
 
 - **实时翻译管线**：系统音频 → VAD → ASR → LLM 翻译 → 字幕显示
-- **多 ASR 引擎**：faster-whisper、SenseVoice、FunASR Nano、Qwen3-ASR（GGUF）
+- **多 ASR 引擎**：faster-whisper、SenseVoice、FunASR Nano、Anime-Whisper
 - **兼容任意 OpenAI 格式 API**：DeepSeek、Grok、Qwen、GPT、Ollama、vLLM 等
 - **流式翻译显示**：翻译结果逐字实时显示
 - **模型独立配置**：流式传输、结构化输出(JSON)、上下文历史、禁用思考
@@ -115,7 +115,7 @@ main.py                 主入口，管线编排
 ├── asr_engine.py       faster-whisper 后端
 ├── asr_sensevoice.py   SenseVoice 后端
 ├── asr_funasr_nano.py  FunASR Nano 后端
-├── asr_qwen3.py        Qwen3-ASR 后端 (ONNX + GGUF)
+├── asr_anime_whisper.py Anime-Whisper 后端 (日语动画/Galgame)
 ├── translator.py       OpenAI 兼容翻译客户端 (流式/JSON/上下文)
 ├── model_manager.py    模型下载与缓存管理
 ├── subtitle_overlay.py PyQt6 透明悬浮窗
@@ -126,9 +126,10 @@ main.py                 主入口，管线编排
 
 ## 致谢
 
-- [CapsWriter-Offline](https://github.com/HaujetZhao/CapsWriter-Offline) — Qwen3-ASR 集成架构参考
-- [Qwen3-ASR-GGUF](https://github.com/HaujetZhao/Qwen3-ASR-GGUF) — ONNX + GGUF 混合推理引擎
-- [llama.cpp](https://github.com/ggml-org/llama.cpp) — GGUF 模型推理运行时
+- [faster-whisper](https://github.com/SYSTRAN/faster-whisper) — 基于 CTranslate2 的 Whisper 推理
+- [FunASR](https://github.com/modelscope/FunASR) — SenseVoice / Fun-ASR-Nano
+- [Anime-Whisper](https://huggingface.co/litagin/anime-whisper) — 日语动画/Galgame 专用 ASR
+- [Silero VAD](https://github.com/snakers4/silero-vad) — 语音活动检测
 
 ## Star History
 

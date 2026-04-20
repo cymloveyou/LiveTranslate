@@ -21,7 +21,7 @@ Works with any system audio — videos, livestreams, voice chat. No player modif
 ## Features
 
 - **Real-time pipeline**: System audio → VAD → ASR → LLM translation → overlay
-- **Multiple ASR engines**: faster-whisper, SenseVoice, FunASR Nano, Qwen3-ASR (GGUF)
+- **Multiple ASR engines**: faster-whisper, SenseVoice, FunASR Nano, Anime-Whisper
 - **Any OpenAI-compatible API**: DeepSeek, Grok, Qwen, GPT, Ollama, vLLM, etc.
 - **Streaming translation display**: Real-time character-by-character translation output
 - **Per-model settings**: Streaming, structured output (JSON), context history, disable thinking
@@ -115,7 +115,7 @@ main.py                 Entry point & pipeline
 ├── asr_engine.py       faster-whisper backend
 ├── asr_sensevoice.py   SenseVoice backend
 ├── asr_funasr_nano.py  FunASR Nano backend
-├── asr_qwen3.py        Qwen3-ASR backend (ONNX + GGUF)
+├── asr_anime_whisper.py Anime-Whisper backend (ja anime/galgame)
 ├── translator.py       OpenAI-compatible client (streaming, JSON schema, context)
 ├── model_manager.py    Model download & cache
 ├── subtitle_overlay.py PyQt6 overlay
@@ -126,9 +126,10 @@ main.py                 Entry point & pipeline
 
 ## Acknowledgements
 
-- [CapsWriter-Offline](https://github.com/HaujetZhao/CapsWriter-Offline) — Qwen3-ASR integration reference
-- [Qwen3-ASR-GGUF](https://github.com/HaujetZhao/Qwen3-ASR-GGUF) — ONNX + GGUF inference engine
-- [llama.cpp](https://github.com/ggml-org/llama.cpp) — GGUF runtime
+- [faster-whisper](https://github.com/SYSTRAN/faster-whisper) — Whisper inference via CTranslate2
+- [FunASR](https://github.com/modelscope/FunASR) — SenseVoice / Fun-ASR-Nano
+- [Anime-Whisper](https://huggingface.co/litagin/anime-whisper) — Japanese anime/galgame ASR
+- [Silero VAD](https://github.com/snakers4/silero-vad) — Voice activity detection
 
 ## Star History
 

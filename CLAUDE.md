@@ -29,8 +29,7 @@ main.py (LiveTranslateApp)
   |-- asr_engine.py        faster-whisper (Whisper) backend
   |-- asr_sensevoice.py    FunASR SenseVoice backend (better for Japanese)
   |-- asr_funasr_nano.py   FunASR Nano backend
-  |-- asr_qwen3.py         Qwen3-ASR backend (ONNX Encoder + GGUF Decoder)
-  |-- qwen_asr_gguf/       Qwen3-ASR inference engine (from Qwen3-ASR-GGUF project)
+  |-- asr_anime_whisper.py Anime-Whisper backend (litagin/anime-whisper, ja anime/galgame)
   |-- translator.py        OpenAI-compatible API client, streaming, JSON schema, context history
   |-- subtitle_overlay.py  PyQt6 transparent overlay (2-row header: controls + model/lang combos)
   |-- subtitle_window.py   Standalone subtitle window for OBS capture (outlined text, animations)
@@ -64,7 +63,11 @@ Each model in `user_settings.json` has: `name`, `api_base`, `api_key`, `model`, 
 - `json_response` (bool, default False): Uses `response_format={"type": "json_schema"}` with schema `{"t": "string"}` for structured output; mutually exclusive with streaming UI display
 - `context_turns` (int, default 0): Number of recent (source, translation) pairs to include as multi-turn context in messages
 - `input_price`/`output_price` (float, per 1M tokens): Token pricing for cost estimation displayed in MonitorBar
+- `overrides` (dict, optional): Per-request OpenAI chat-completion params that override defaults — supported keys `temperature`, `top_p`, `max_tokens`, `frequency_penalty`, `presence_penalty`, `seed`. Only keys present in the dict are sent; absent keys fall back to constructor defaults (temperature/max_tokens) or are omitted entirely (others)
+- `extra_body` (dict, optional): Provider-specific params (e.g. `thinking_budget`, `reasoning_effort`) merged into the request's `extra_body`. Combined with `no_think`'s `enable_thinking=false` when both are set
 - Proxy handling: `proxy="none"` uses `httpx.Client(trust_env=False)` to bypass system proxy; `proxy="system"` uses default httpx behavior (env vars)
+- `Translator._build_request_kwargs()` is the single assembly point — it injects `overrides`, merges `extra_body` with `no_think`, and stamps `response_format` for `json_response`. All three code paths (`_translate_sync`, `_translate_streaming`, streaming `translate_iter`) go through it
+- ModelEditDialog "Advanced Parameters" group uses `[Override] checkbox + value widget` pattern — unchecked rows don't write to the `overrides` dict, preserving backward-compat. `extra_body` is a multi-line JSON text field validated on OK
 - Editing the active model in ModelEditDialog triggers `model_changed` signal to immediately apply changes
 
 ### Subtitle Window (subtitle_window.py)
@@ -161,7 +164,6 @@ Continuous speech is processed incrementally to reduce latency (enabled by `incr
 - Audio chunk duration is 32ms (512 samples at 16kHz), matching Silero VAD's native window size for minimal latency
 - FunASR `disable_pbar=True` required in all `generate()` calls — tqdm crashes in GUI process when flushing stderr
 - ASR engine lifecycle: each engine exposes `unload()` (move to CPU + release) and `to_device(device)` (in-place migration). Device switching uses `to_device()` for PyTorch engines (SenseVoice/FunASR) and full reload for ctranslate2 (Whisper). Release order: `unload()` → `del` → `gc.collect()` → `torch.cuda.empty_cache()`
-- Qwen3-ASR: ONNX Encoder (DirectML) + llama.cpp GGUF Decoder (Vulkan). Model files auto-downloaded from GitHub Release. llama.cpp DLLs go in `qwen_asr_gguf/inference/bin/`. No PyTorch dependency at inference time. `to_device()` returns False (must reload). Context injection via `_context` field for continuous recognition accuracy.
 - Whisper (ctranslate2) only accepts `device="cuda"` not `"cuda:0"`; device index passed via `device_index` param. Parsed from combo text like `"cuda:0 (RTX 4090)"` in `_switch_asr_engine`
 - ASR text density filter: segments ≥2s producing ≤3 alnum characters are discarded as noise
 - Settings file uses atomic write (write to `.tmp` then `os.replace`) to prevent corruption on crash

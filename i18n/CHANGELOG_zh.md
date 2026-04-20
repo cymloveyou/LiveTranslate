@@ -1,5 +1,12 @@
 # 更新日志
 
+## 2026-04-20
+- 移除 Qwen3-ASR 引擎 (ONNX + GGUF 方案兼容性较差, 相关模型文件和 llama.cpp 运行时依赖一并清理)
+- 模型配置新增「高级参数」: `temperature` / `top_p` / `max_tokens` / `frequency_penalty` / `presence_penalty` / `seed`, 每项独立「覆盖」开关, 未勾选时使用服务端默认值
+- 模型配置新增 `extra_body` (JSON): 供应商专有参数透传, 如 `thinking_budget`、`reasoning_effort` 等, 保存时自动校验 JSON 格式
+- 修复 Anime-Whisper 模型未缓存时下载对话框静默无动作的问题
+- 修复设置面板「更新日志」Tab 空白 (正则匹配 H3 但文件用 H2, 3 月加入功能起就失效)
+
 ## 2026-04-18
 - 新增 ASR 引擎: Anime-Whisper (litagin/anime-whisper), 日语动画/Galgame 特化, 擅长识别喘息/叹息等非语言发声
 - 修复 HF 缓存检测误判: 下载中断留下的空目录不再被认为"已缓存"

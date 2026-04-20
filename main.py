@@ -21,17 +21,12 @@ from model_manager import (
     is_asr_cached,
     ASR_DISPLAY_NAMES,
     MODELS_DIR,
-    get_qwen3_asr_model_dir,
 )
 
 # Set cache env BEFORE importing torch so TORCH_HOME is respected
 apply_cache_env()
 
-# Qwen3-ASR uses onnxruntime-directml (libomp140.dll) which conflicts with
-# PyTorch's libiomp5md.dll. Allow coexistence since they don't run concurrently.
 import os
-
-os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
 # torch must be imported before PyQt6 to avoid DLL conflicts on Windows
 import torch  # noqa: F401
@@ -317,6 +312,8 @@ class LiveTranslateApp:
             no_think=model_config.get("no_think", True),
             json_response=model_config.get("json_response", False),
             timeout=timeout,
+            overrides=model_config.get("overrides"),
+            extra_body=model_config.get("extra_body"),
         )
         self._translator.set_context_turns(model_config.get("context_turns", 0))
         self._input_price = model_config.get("input_price", 0)
@@ -395,14 +392,7 @@ class LiveTranslateApp:
                     dev_index = int(part.split(":")[1])
                     dev = "cuda"
 
-                if engine_type == "qwen3-asr":
-                    from asr_qwen3 import Qwen3ASREngine
-
-                    new_asr[0] = Qwen3ASREngine(
-                        model_dir=get_qwen3_asr_model_dir(),
-                        use_dml=(dev != "cpu"),
-                    )
-                elif engine_type == "sensevoice":
+                if engine_type == "sensevoice":
                     from asr_sensevoice import SenseVoiceEngine
 
                     new_asr[0] = SenseVoiceEngine(device=device, hub=hub)

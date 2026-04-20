@@ -172,7 +172,6 @@ class ControlPanel(QWidget):
                 f"[{t('asr_fast')}] SenseVoice (FunASR)",
                 "Fun-ASR-Nano (FunASR)",
                 "Fun-ASR-MLT-Nano (FunASR, 31 langs)",
-                "Qwen3-ASR (GGUF, 30 langs)",
                 "Anime-Whisper (ja, anime/galgame)",
             ]
         )
@@ -181,8 +180,7 @@ class ControlPanel(QWidget):
             "sensevoice": 1,
             "funasr-nano": 2,
             "funasr-mlt-nano": 3,
-            "qwen3-asr": 4,
-            "anime-whisper": 5,
+            "anime-whisper": 4,
         }
         engine_idx = engine_map_idx.get(s.get("asr_engine"), 0)
         self._asr_engine.setCurrentIndex(engine_idx)
@@ -1257,8 +1255,7 @@ class ControlPanel(QWidget):
             1: "sensevoice",
             2: "funasr-nano",
             3: "funasr-mlt-nano",
-            4: "qwen3-asr",
-            5: "anime-whisper",
+            4: "anime-whisper",
         }
         self._current_settings["asr_engine"] = engine_map[
             self._asr_engine.currentIndex()

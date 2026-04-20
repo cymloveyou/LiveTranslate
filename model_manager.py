@@ -11,7 +11,6 @@ ASR_MODEL_IDS = {
     "sensevoice": "iic/SenseVoiceSmall",
     "funasr-nano": "FunAudioLLM/Fun-ASR-Nano-2512",
     "funasr-mlt-nano": "FunAudioLLM/Fun-ASR-MLT-Nano-2512",
-    "qwen3-asr": "Qwen3-ASR-1.7B",
     "anime-whisper": "litagin/anime-whisper",
 }
 
@@ -20,18 +19,8 @@ ASR_DISPLAY_NAMES = {
     "funasr-nano": "Fun-ASR-Nano",
     "funasr-mlt-nano": "Fun-ASR-MLT-Nano",
     "whisper": "Whisper",
-    "qwen3-asr": "Qwen3-ASR",
     "anime-whisper": "Anime-Whisper",
 }
-
-# Expected model files for Qwen3-ASR
-QWEN3_ASR_FILES = [
-    "qwen3_asr_encoder_frontend.int4.onnx",
-    "qwen3_asr_encoder_backend.int4.onnx",
-    "qwen3_asr_llm.q4_k.gguf",
-]
-
-QWEN3_ASR_DIR_NAME = "qwen3-asr"
 
 _MODEL_SIZE_BYTES = {
     "silero-vad": 2_000_000,
@@ -43,7 +32,6 @@ _MODEL_SIZE_BYTES = {
     "whisper-small": 488_000_000,
     "whisper-medium": 1_530_000_000,
     "whisper-large-v3": 3_100_000_000,
-    "qwen3-asr": 770_000_000,
     "anime-whisper": 3_100_000_000,
 }
 
@@ -82,38 +70,7 @@ def _ms_model_path(org, name):
     return MODELS_DIR / "modelscope" / org / name
 
 
-def is_qwen3_asr_ready() -> bool:
-    """Check if Qwen3-ASR model files and llama.cpp DLLs are present."""
-    model_dir = MODELS_DIR / QWEN3_ASR_DIR_NAME
-    if not model_dir.exists():
-        return False
-    for fn in QWEN3_ASR_FILES:
-        if not (model_dir / fn).exists():
-            return False
-    # Check llama.cpp DLLs
-    bin_dir = APP_DIR / "qwen_asr_gguf" / "inference" / "bin"
-    if not bin_dir.exists():
-        return False
-    import sys
-
-    if sys.platform == "win32":
-        required_dlls = ["llama.dll", "ggml.dll", "ggml-base.dll"]
-    else:
-        required_dlls = ["libllama.so", "libggml.so", "libggml-base.so"]
-    for dll in required_dlls:
-        if not (bin_dir / dll).exists():
-            return False
-    return True
-
-
-def get_qwen3_asr_model_dir() -> str:
-    """Return the Qwen3-ASR model directory path."""
-    return str((MODELS_DIR / QWEN3_ASR_DIR_NAME).resolve())
-
-
 def is_asr_cached(engine_type, model_size="medium", hub="ms") -> bool:
-    if engine_type == "qwen3-asr":
-        return is_qwen3_asr_ready()
     if engine_type in ("sensevoice", "funasr-nano", "funasr-mlt-nano"):
         model_id = ASR_MODEL_IDS[engine_type]
         org, name = model_id.split("/")
@@ -184,9 +141,6 @@ def get_local_model_path(engine_type, hub="ms"):
 
     Checks the preferred hub first, then falls back to the other hub.
     """
-    if engine_type == "qwen3-asr":
-        d = MODELS_DIR / QWEN3_ASR_DIR_NAME
-        return str(d) if d.exists() else None
     if engine_type not in ASR_MODEL_IDS:
         return None
     model_id = ASR_MODEL_IDS[engine_type]
@@ -225,118 +179,11 @@ def download_silero():
     log.info("Silero VAD downloaded")
 
 
-QWEN3_ASR_MODEL_URL = "https://github.com/HaujetZhao/Qwen3-ASR-GGUF/releases/download/models/Qwen3-ASR-1.7B-gguf.zip"
-LLAMA_CPP_DLL_URL_TEMPLATE = "https://github.com/ggml-org/llama.cpp/releases/download/{tag}/llama-{tag}-bin-win-vulkan-x64.zip"
-LLAMA_CPP_LATEST_API = "https://api.github.com/repos/ggml-org/llama.cpp/releases/latest"
-
-
-def _download_file(url: str, dest: Path, desc: str = ""):
-    """Download a file with progress logging."""
-    import urllib.request
-
-    log.info(f"Downloading {desc or url}...")
-    try:
-        urllib.request.urlretrieve(url, str(dest))
-    except Exception as e:
-        log.error(f"Download failed: {e}")
-        raise
-    log.info(f"Downloaded: {dest} ({dest.stat().st_size / 1024 / 1024:.1f} MB)")
-
-
-def download_qwen3_asr():
-    """Download and extract Qwen3-ASR model + llama.cpp DLLs."""
-    import zipfile
-    import json
-    import urllib.request
-
-    model_dir = MODELS_DIR / QWEN3_ASR_DIR_NAME
-    model_dir.mkdir(parents=True, exist_ok=True)
-    bin_dir = APP_DIR / "qwen_asr_gguf" / "inference" / "bin"
-    bin_dir.mkdir(parents=True, exist_ok=True)
-
-    # 1. Download and extract model files if missing
-    model_missing = any(not (model_dir / fn).exists() for fn in QWEN3_ASR_FILES)
-    if model_missing:
-        zip_path = MODELS_DIR / "qwen3-asr-1.7b-gguf.zip"
-        _download_file(QWEN3_ASR_MODEL_URL, zip_path, "Qwen3-ASR-1.7B model")
-        log.info("Extracting model files...")
-        with zipfile.ZipFile(str(zip_path), "r") as zf:
-            for member in zf.namelist():
-                basename = os.path.basename(member)
-                if basename and basename in QWEN3_ASR_FILES:
-                    with (
-                        zf.open(member) as src,
-                        open(str(model_dir / basename), "wb") as dst,
-                    ):
-                        import shutil
-
-                        shutil.copyfileobj(src, dst)
-        zip_path.unlink(missing_ok=True)
-        log.info(f"Model extracted to {model_dir}")
-
-    # 2. Download and extract llama.cpp DLLs if missing
-    import sys
-
-    if sys.platform == "win32":
-        required_dlls = ["llama.dll", "ggml.dll", "ggml-base.dll"]
-    else:
-        required_dlls = ["libllama.so", "libggml.so", "libggml-base.so"]
-
-    dlls_missing = any(not (bin_dir / dll).exists() for dll in required_dlls)
-    if dlls_missing:
-        # Get latest release tag
-        log.info("Fetching latest llama.cpp release tag...")
-        try:
-            req = urllib.request.Request(
-                LLAMA_CPP_LATEST_API, headers={"User-Agent": "LiveTranslate"}
-            )
-            with urllib.request.urlopen(req, timeout=15) as resp:
-                tag = json.loads(resp.read())["tag_name"]
-        except Exception:
-            tag = "b8391"
-            log.warning(f"Failed to get latest tag, using fallback: {tag}")
-
-        dll_url = LLAMA_CPP_DLL_URL_TEMPLATE.format(tag=tag)
-        zip_path = MODELS_DIR / "llama-cpp-vulkan.zip"
-        _download_file(dll_url, zip_path, f"llama.cpp {tag} (Vulkan)")
-
-        log.info("Extracting llama.cpp DLLs...")
-        with zipfile.ZipFile(str(zip_path), "r") as zf:
-            for member in zf.namelist():
-                basename = os.path.basename(member)
-                if basename in required_dlls:
-                    with (
-                        zf.open(member) as src,
-                        open(str(bin_dir / basename), "wb") as dst,
-                    ):
-                        import shutil
-
-                        shutil.copyfileobj(src, dst)
-        # Also extract ggml-vulkan.dll and other ggml backend DLLs
-        with zipfile.ZipFile(str(zip_path), "r") as zf:
-            for member in zf.namelist():
-                basename = os.path.basename(member)
-                if basename.startswith("ggml-") and basename.endswith(".dll"):
-                    with (
-                        zf.open(member) as src,
-                        open(str(bin_dir / basename), "wb") as dst,
-                    ):
-                        import shutil
-
-                        shutil.copyfileobj(src, dst)
-        zip_path.unlink(missing_ok=True)
-        log.info(f"DLLs extracted to {bin_dir}")
-
-    log.info("Qwen3-ASR setup complete")
-
-
 def download_asr(engine, model_size="medium", hub="ms"):
     resolved = str(MODELS_DIR.resolve())
     ms_cache = os.path.join(resolved, "modelscope")
     hf_cache = os.path.join(resolved, "huggingface", "hub")
-    if engine == "qwen3-asr":
-        download_qwen3_asr()
-    elif engine in ("sensevoice", "funasr-nano", "funasr-mlt-nano"):
+    if engine in ("sensevoice", "funasr-nano", "funasr-mlt-nano"):
         model_id = ASR_MODEL_IDS[engine]
         if hub == "ms":
             from modelscope import snapshot_download
@@ -411,17 +258,5 @@ def get_cache_entries():
             if d.is_dir():
                 entries.append(("Silero VAD", d))
                 break
-
-    # Qwen3-ASR model files
-    qwen3_dir = MODELS_DIR / QWEN3_ASR_DIR_NAME
-    if qwen3_dir.exists() and any(qwen3_dir.iterdir()):
-        entries.append(("Qwen3-ASR 1.7B (GGUF)", qwen3_dir))
-
-    # llama.cpp DLLs
-    bin_dir = APP_DIR / "qwen_asr_gguf" / "inference" / "bin"
-    if bin_dir.exists() and any(
-        f for f in bin_dir.iterdir() if f.suffix in (".dll", ".so")
-    ):
-        entries.append(("llama.cpp (Vulkan)", bin_dir))
 
     return entries
